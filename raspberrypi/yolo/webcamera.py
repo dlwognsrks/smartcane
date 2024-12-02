@@ -1,8 +1,5 @@
 # 라즈베리파이에서 실행시키면 웹사이트에서 영상 스트리밍 가능
 
-#!/usr/bin/python3
-
-# This is the same as mjpeg_server.py, but uses the h/w MJPEG encoder.
 
 import io
 import logging

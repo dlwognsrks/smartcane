@@ -1,7 +1,6 @@
 # UPS_HAT 의 데이터값을 받아서 라즈베리파이 Fast api 백엔드로 전송하는 코드
 # 배터리 상태에 따른 음성메시지 출력
 
-
 import requests
 import time
 from gtts import gTTS
@@ -17,7 +16,7 @@ _REG_CALIBRATION = 0x05
 
 class INA219:
     def __init__(self, i2c_bus=1, addr=0x40):
-        import smbus  # smbus를 여기서 임포트하여 의존성 관리
+        import smbus
         self.bus = smbus.SMBus(i2c_bus)
         self.addr = addr
         self._cal_value = 0
@@ -63,64 +62,62 @@ class INA219:
 
 def speak_text(text):
     """TTS 음성 출력 함수"""
-    tts = gTTS(text=text, lang='ko')
-    tts.save("output.mp3")
-    os.system("mpg321 output.mp3")
+    try:
+        tts = gTTS(text=text, lang='ko')
+        tts.save("output.mp3")
+        os.system("mpg321 -q output.mp3")
+    except Exception as e:
+        print(f"Error in TTS or playback: {e}")
 
 if __name__ == '__main__':
-    # INA219 객체 생성
     ina219 = INA219(addr=0x42)
+    backend_url = "http://172.20.10.3:8000/api/data"  # 실제 백엔드 주소로 변경
 
-    # 윈도우 서버의 IP 주소와 포트
-    server_url = "http://192.168.0.133:5000/data"  # <WINDOWS_IP>를 실제 IP로 변경
-
-    alert_triggered = False  # 충전 완료 메시지 출력 여부
-    charging = False  # 현재 충전 상태
+    alert_triggered = False
+    charging = False
 
     while True:
-        # 데이터 측정
-        bus_voltage = ina219.getBusVoltage_V()
-        shunt_voltage = ina219.getShuntVoltage_mV() / 1000
-        current = ina219.getCurrent_mA()
-        power = ina219.getPower_W()
-        p = (bus_voltage - 6) / 2.4 * 100
-        p = max(0, min(100, p))  # 0~100%로 제한
-
-        # 디버깅 출력
-        print(f"Voltage: {bus_voltage:.2f} V, Current: {current:.2f} mA, Power: {power:.2f} W, Percent: {p:.1f}%")
-
-        # 충전기 연결 감지 (전류 > 0)
-        if current > 0 and not charging:
-            print("충전을 시작합니다.")  # 디버깅 메시지
-            speak_text("충전을 시작합니다.")
-            charging = True  # 충전 상태 업데이트
-            alert_triggered = False  # 충전 상태가 바뀌면 90% 메시지 재출력을 허용
-
-        # 충전기 제거 감지 (전류 <= 0)
-        elif current <= 0 and charging:
-            print("충전을 중지합니다.")  # 디버깅 메시지
-            speak_text("충전을 중지합니다.")
-            charging = False  # 충전 상태 업데이트
-            alert_triggered = False  # 충전기 제거 시 메시지 상태 초기화
-
-        # 배터리 충전 90% 이상 메시지
-        if p > 90 and charging and not alert_triggered:
-            print("충전이 90퍼센트 이상 완료되었습니다. 배터리 상태를 위해 충전을 중지해주세요.")  # 디버깅 메시지
-            speak_text("충전이 90퍼센트 이상 완료되었습니다. 배터리 상태를 위해 충전을 중지해주세요.")
-            alert_triggered = True  # 플래그 설정
-
-        # 데이터 전송
-        data = {
-            "load_voltage": round(bus_voltage, 3),
-            "current": round(current / 1000, 6),
-            "power": round(power, 3),
-            "percent": round(p, 1)
-        }
-
         try:
-            response = requests.post(server_url, json=data)
-            print(f"Response: {response.status_code} {response.text}")
-        except Exception as e:
-            print(f"Failed to send data: {e}")
+            # 데이터 측정
+            bus_voltage = ina219.getBusVoltage_V()
+            current = ina219.getCurrent_mA()
+            power = ina219.getPower_W()
+            percent = max(0, min(100, (bus_voltage - 6) / 2.4 * 100))
 
+           
+            # 충전 상태 및 음성 안내
+            if current > 0 and not charging:
+                print("충전을 시작합니다.")
+                speak_text("충전을 시작합니다.")
+                charging = True
+                alert_triggered = False
+            elif current <= 0 and charging:
+                print("충전을 중지합니다.")
+                speak_text("충전을 중지합니다.")
+                charging = False
+                alert_triggered = False
+            if percent > 90 and charging and not alert_triggered:
+                print("충전이 90퍼센트 이상 완료되었습니다.")
+                speak_text("충전이 90퍼센트 이상 완료되었습니다.")
+                alert_triggered = True
+
+            # 데이터 전송
+            data = {
+                "volt": round(bus_voltage, 3),
+                "current": round(current / 1000, 6),
+                "power": round(power, 3),
+                "percent": round(percent, 1)
+            }
+
+            try:
+                response = requests.post(backend_url, json=data, timeout=5)
+                print(f"Response: {response.status_code} {response.text}")
+            except Exception as e:
+                print(f"Failed to send data to backend: {e}")
+
+        except Exception as e:
+            # 전체 루프에서 발생하는 예외 처리
+            print(f"Unexpected error in loop: {e}")
+
+        # 2초 대기 후 루프 재실행
         time.sleep(2)

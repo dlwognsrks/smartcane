@@ -1,5 +1,3 @@
-# 라즈베리파이에서 UPS_HAT의 데이터를 받고 react 서버로 전송하는 코드
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,7 +9,7 @@ latest_data = {}
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://175.214.183.100:3000"],  # React 가 실행되는 컴퓨터의 공인ip주소
+    allow_origins=["http://172.31.48.1:3000","*"],  # React 가 실행되는 컴퓨터의 공인ip주소 , * : 추가함. ip 다 허용이래
     allow_methods=["*"],
     allow_headers=["*"],
 )

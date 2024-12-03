@@ -1,3 +1,7 @@
+# UPS_HAT 의 데이터값을 받아서 라즈베리파이 Fast api 백엔드로 전송하는 코드
+# 배터리 상태에 따른 음성메시지 출력
+
+
 import requests
 import time
 from gtts import gTTS
